@@ -509,7 +509,7 @@ class LaneDataset(Dataset):
         """
         return self.n_samples
 
-    def add_noise(noise_typ, image):
+    def add_noise(self, noise_typ, image):
         import numpy as np
         import os
         import cv2
@@ -617,6 +617,8 @@ class LaneDataset(Dataset):
                 image = (Image.open(f).convert('RGB'))
 
         # ADD NOISE
+        # print("adding noise")
+        # import pdb; pdb.set_trace()
         image = self.add_noise("gauss", image)
 
         # image preprocess with crop and resize
