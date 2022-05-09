@@ -25,10 +25,21 @@ def config(args):
     # args.data_dir = '/mnt/disk01/openlane/lane3d_300/'
 
     # 1000 sequence
+    # args.dataset_name = 'openlane'
+    # args.dataset_dir = '/mnt/disk01/openlane/images/'
+    # args.data_dir = '/mnt/disk01/openlane/lane3d_1000/'
+    
+    # AMAN
+    # 300 sequence
     args.dataset_name = 'openlane'
-    args.dataset_dir = '/mnt/disk01/openlane/images/'
-    args.data_dir = '/mnt/disk01/openlane/lane3d_1000/'
+    args.dataset_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_images/images/'
+    args.data_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_lane3d_300/lane3d_300/'
 
+    # 1000 sequence
+    # args.dataset_name = 'openlane'
+    # args.dataset_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_images/images/'
+    # args.data_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_lane3d_1000/lane3d_1000/'
+    
     if 'openlane' in args.dataset_name:
         openlane_config(args)
     else:
@@ -46,7 +57,8 @@ def config(args):
     args.y_ref = 5  # new anchor prefer closer range gt assign
 
     # for the case only running evaluation
-    args.evaluate = False
+    # AMAN
+    args.evaluate = True
     args.evaluate_case = False
 
     # settings for save and visualize
@@ -81,7 +93,8 @@ def config(args):
     args.use_fpn = False
 
     # data loader
-    args.nworkers = 7
+    # AMAN
+    args.nworkers = 1
 
     # grad clip
     args.clip_grad_norm = 35.0
