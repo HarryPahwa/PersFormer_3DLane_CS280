@@ -20,8 +20,9 @@ import os
 from pathlib import Path
 # memcache related
 import numpy as np
+import time
 import cv2
-
+import pdb
 import re
 
 from numpy import int32, result_type
@@ -29,7 +30,7 @@ sys.path.append('./')
 import copy
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from PIL import Image
+from PIL import Image, ImageChops
 import json
 import glob
 import random
@@ -510,13 +511,10 @@ class LaneDataset(Dataset):
         return self.n_samples
 
     def add_noise(self, noise_typ, image):
-        import numpy as np
-        import os
-        import cv2
         if noise_typ == "gauss":
             row,col,ch= image.shape
-            mean = 0
-            var = 0.1
+            mean = 10
+            var = 1
             sigma = var**0.5
             gauss = np.random.normal(mean,sigma,(row,col,ch))
             gauss = gauss.reshape(row,col,ch)
@@ -617,9 +615,21 @@ class LaneDataset(Dataset):
                 image = (Image.open(f).convert('RGB'))
 
         # ADD NOISE
-        # print("adding noise")
-        # import pdb; pdb.set_trace()
-        image = self.add_noise("gauss", image)
+        # pdb.set_trace()
+        # print(image)
+        # image.show()
+        # image2 = copy.deepcopy(image)
+        # time.sleep(5)
+        image = self.add_noise("gauss", np.asarray(image))
+        image = Image.fromarray(np.uint8(image))
+        # # image.show()
+        # # print(image)
+        # # print("CHECK THE NEXT LINE")
+        # # diff = ImageChops.difference(image2, image)
+        # # print(diff.getbbox())
+        # # a=5/0
+        
+        # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
         # image preprocess with crop and resize
         image = F.crop(image, self.h_crop, 0, self.h_org-self.h_crop, self.w_org)
