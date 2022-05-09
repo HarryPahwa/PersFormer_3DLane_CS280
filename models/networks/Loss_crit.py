@@ -76,7 +76,6 @@ class Laneline_loss_3D(nn.Module):
         loss3 = torch.sum(torch.abs(gt_pitch-pred_pitch))+torch.sum(torch.abs(gt_hcam-pred_hcam))
         return loss1+loss2+loss3
 
-
 class Laneline_loss_gflat(nn.Module):
     """
     Compute the loss between predicted lanelines and ground-truth laneline in anchor representation.
@@ -373,7 +372,6 @@ class Laneline_loss_gflat_novis_withdict(nn.Module):
         loss3 = torch.sum(torch.abs(gt_pitch-pred_pitch))+torch.sum(torch.abs(gt_hcam-pred_hcam))
         return loss0+loss1+loss2+loss3, {'vis_loss': loss0, 'prob_loss': loss1, 'reg_loss': loss2, 'cam_pred_loss': loss3}
 
-
 class Laneline_loss_gflat_3D(nn.Module):
     """
     Compute the loss between predicted lanelines and ground-truth laneline in anchor representation.
@@ -470,7 +468,102 @@ class Laneline_loss_gflat_3D(nn.Module):
         loss4 = torch.sum(torch.abs(gt_pitch-pred_pitch)) + torch.sum(torch.abs(gt_hcam-pred_hcam))
         return loss0+loss1+loss2+loss3+loss4
 
+class new_loss(nn.Module):
+   """
+    Compute the loss between predicted lanelines and ground-truth laneline in anchor representation.
+    The anchor representation is in flat ground space X', Y' and real 3D Z. Visibility estimation is also included.
 
+    loss = loss0 + loss1 + loss2 + loss2
+    loss0: cross entropy loss for lane point visibility
+    loss1: cross entropy loss for lane type classification
+    loss2: sum of geometric distance betwen 3D lane anchor points in X and Z offsets
+    loss3: error in estimating pitch and camera heights
+    """
+    def __init__(self, num_types, num_y_steps, pred_cam, num_category, no_3d, loss_dist):
+        super(Laneline_loss_gflat_multiclass, self).__init__()
+        self.num_types = num_types
+        self.num_y_steps = num_y_steps
+        self.num_category = num_category
+        self.no_3d = no_3d
+        self.loss_dist = loss_dist      # a list, weight for loss0, loss1, loss2, loss3
+        if no_3d:
+            self.anchor_dim = self.num_y_steps + num_category
+        else:
+            self.anchor_dim = 3*self.num_y_steps + num_category
+        self.pred_cam = pred_cam
+        
+    def forward(self, pred_3D_lanes, gt_3D_lanes, pred_hcam, gt_hcam, pred_pitch, gt_pitch):
+        """
+
+        :param pred_3D_lanes: predicted tensor with size N x (ipm_w/8) x 3*(2*K+1)
+        :param gt_3D_lanes: ground-truth tensor with size N x (ipm_w/8) x 3*(2*K+1)
+        :param pred_pitch: predicted pitch with size N
+        :param gt_pitch: ground-truth pitch with size N
+        :param pred_hcam: predicted camera height with size N
+        :param gt_hcam: ground-truth camera height with size N
+        :return:
+        """
+        sizes = pred_3D_lanes.shape
+        # reshape to N x ipm_w/8 x 3 x (3K+1)
+        pred_3D_lanes = pred_3D_lanes.reshape(sizes[0], sizes[1], self.num_types, self.anchor_dim)
+        gt_3D_lanes = gt_3D_lanes.reshape(sizes[0], sizes[1], self.num_types, self.anchor_dim)
+        # class prob N x ipm_w/8 x 3 x 1, anchor value N x ipm_w/8 x 3 x 2K
+        pred_category  = pred_3D_lanes[:, :, :, self.anchor_dim - self.num_category:]
+        gt_category_onehot  = gt_3D_lanes[:, :, :, self.anchor_dim - self.num_category:]
+        if self.no_3d:
+            pred_anchors = pred_3D_lanes[:, :, :, :self.num_y_steps]
+            gt_anchors = gt_3D_lanes[:, :, :, :self.num_y_steps]
+            pred_visibility = torch.ones_like(pred_anchors)
+            gt_visibility = torch.ones_like(gt_anchors)
+        else:
+            pred_anchors = pred_3D_lanes[:, :, :, :2*self.num_y_steps]
+            pred_visibility = pred_3D_lanes[:, :, :, 2*self.num_y_steps:3*self.num_y_steps]
+            gt_anchors = gt_3D_lanes[:, :, :, :2*self.num_y_steps]
+            gt_visibility = gt_3D_lanes[:, :, :, 2*self.num_y_steps:3*self.num_y_steps]
+
+
+        valid_category_weight = torch.sum(gt_category_onehot[:, :, :, 1:], dim=-1).unsqueeze(-1)
+
+        # cross-entropy loss for visibility
+        loss0 = -torch.sum(
+            valid_category_weight * gt_visibility * torch.log(pred_visibility + torch.tensor(1e-9)) +
+            valid_category_weight * (torch.ones_like(gt_visibility) - gt_visibility + torch.tensor(1e-9)) * 
+            torch.log(torch.ones_like(pred_visibility) - pred_visibility + torch.tensor(1e-9))) / self.num_y_steps
+        
+        
+        # cross-entropy loss for lane probability
+        # balance categories
+        num_category = pred_category.shape[-1]
+        weight_category = 1.0 - torch.sum(gt_category_onehot.reshape(-1, num_category), dim=0) / torch.sum(gt_category_onehot)
+        cross_entropy_loss = nn.CrossEntropyLoss(weight=weight_category, reduction='sum')
+        gt_category_onehot2class = torch.argmax(gt_category_onehot, dim=-1)
+        pred_category = pred_category.reshape(-1, pred_category.shape[-1])
+        gt_category_onehot2class = gt_category_onehot2class.reshape(-1)
+        loss1 = cross_entropy_loss(pred_category, gt_category_onehot2class)
+
+        
+        if self.no_3d:
+            # only x offsets
+            loss2 = torch.sum(torch.norm(valid_category_weight*gt_visibility*(pred_anchors-gt_anchors), p=1, dim=3))
+        else:
+            # x/z offsets
+            to_the_left = (pred_anchors <= gt_anchors).type(torch.cuda.FloatTensor)
+            to_the_right = 1 - to_the_left
+
+            left_loss = torch.sum(torch.norm(valid_category_weight *
+                                             to_the_left * 
+                                             torch.cat((gt_visibility, gt_visibility), 3) *
+                                             (pred_anchors-gt_anchors), p=1, dim=3))
+
+            right_loss = torch.sum(torch.norm(valid_category_weight *
+                                              to_the_right * 
+                                              torch.cat((gt_visibility, gt_visibility), 3) *
+                                              (pred_anchors-gt_anchors), p=1, dim=3))
+
+            loss2 = (left_loss * right_loss) / torch.abs(left_loss - right_loss)
+
+        return self.loss_dist[0]*loss0 + self.loss_dist[1]*loss1 + self.loss_dist[2]*loss2, {'vis_loss': loss0, 'prob_loss': loss1, 'reg_loss': loss2}
+        
 # unit test
 if __name__ == '__main__':
     num_types = 3
