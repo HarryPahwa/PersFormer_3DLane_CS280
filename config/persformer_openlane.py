@@ -31,10 +31,16 @@ def config(args):
     
     # AMAN
     # 300 sequence
+    # 1080 ti
+    # args.dataset_name = 'openlane'
+    # args.dataset_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_images/images/'
+    # args.data_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_lane3d_300/lane3d_300/'
+    
+    # 2060 Laptop
     args.dataset_name = 'openlane'
-    args.dataset_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_images/images/'
-    args.data_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_lane3d_300/lane3d_300/'
-
+    args.dataset_dir = '/home/roar/3d_lane_detection/datasets/OpenLane_source_compressed_images/images/'
+    args.data_dir = '/home/roar/3d_lane_detection/datasets/OpenLane_source_compressed_lane3d_300/lane3d_300/'
+    
     # 1000 sequence
     # args.dataset_name = 'openlane'
     # args.dataset_dir = '/mnt/ssd/aman/CS280_Project/datasets/OpenLane_source_compressed_images/images/'
