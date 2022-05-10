@@ -480,7 +480,7 @@ class new_loss(nn.Module):
     loss3: error in estimating pitch and camera heights
     """
     def __init__(self, num_types, num_y_steps, pred_cam, num_category, no_3d, loss_dist):
-        super(Laneline_loss_gflat_multiclass, self).__init__()
+        super(new_loss, self).__init__()
         self.num_types = num_types
         self.num_y_steps = num_y_steps
         self.num_category = num_category
@@ -491,6 +491,28 @@ class new_loss(nn.Module):
         else:
             self.anchor_dim = 3*self.num_y_steps + num_category
         self.pred_cam = pred_cam
+
+        matrix = torch.zeros((4*self.num_y_steps - 4, 4*self.num_y_steps - 4))
+
+        n = self.num_y_steps
+        for spline_num in range(n-1):
+            matrix[2 * spline_num, 4 * spline_num + 3] =  1
+            matrix[2 * spline_num + 1, 4 * spline_num:4 * spline_num + 4] =  1
+            
+        for spline_num in range(n-2):
+            matrix[2*(n-1) + spline_num, 4 * spline_num:4 * spline_num + 4] = torch.tensor([3,2,1,0])
+            matrix[2*(n-1) + spline_num, 4 * (spline_num + 1) + 2] = -1
+            
+        for spline_num in range(series.shape[0]-2):
+            matrix[3*(n-1) - 1 + spline_num, 4 * spline_num:4 * spline_num + 4] = torch.tensor([6,2,0,0])
+            matrix[3*(n-1) - 1 + spline_num, 4 * (spline_num + 1) + 1] = -2
+            
+        matrix[-2, 1] = 2
+        matrix[-1, -4] = 6
+        matrix[-1, -3] = 2
+
+        self.cubic_spline_helper = torch.linalg.inv(matrix)
+        self.label_helper = torch.cat(2*[torch.eye(self.num_y_steps)], axis = 1).reshape((-1,self.num_y_steps))[1:-1]
         
     def forward(self, pred_3D_lanes, gt_3D_lanes, pred_hcam, gt_hcam, pred_pitch, gt_pitch):
         """
@@ -560,9 +582,24 @@ class new_loss(nn.Module):
                                               torch.cat((gt_visibility, gt_visibility), 3) *
                                               (pred_anchors-gt_anchors), p=1, dim=3))
 
-            loss2 = (left_loss * right_loss) / torch.abs(left_loss - right_loss)
+            loss2 = (left_loss * right_loss) + right_loss + left_loss
 
-        return self.loss_dist[0]*loss0 + self.loss_dist[1]*loss1 + self.loss_dist[2]*loss2, {'vis_loss': loss0, 'prob_loss': loss1, 'reg_loss': loss2}
+        x_energy_pred = self.get_energy(pred_anchors[:,:,:self.num_y_steps])
+        z_energy_pred = self.get_energy(pred_anchors[:,:,self.num_y_steps:])
+        x_energy_gt = self.get_energy(gt_anchors[:,:,:self.num_y_steps])
+        z_energy_gt = self.get_energy(gt_anchors[:,:,self.num_y_steps:])
+
+        loss3 = torch.abs(x_energy_pred + z_energy_pred - x_energy_gt - z_energy_gt)
+
+        return self.loss_dist[0]*loss0 + self.loss_dist[1]*loss1 + self.loss_dist[2]*loss2 + loss3, {'vis_loss': loss0, 'prob_loss': loss1, 'reg_loss': loss2,  'power_loss': loss3}
+
+
+    def get_energy(self,achors):
+        unbatched = anchors.reshape((-1, self.num_y_steps))
+        labels = torch.matmul(self.label_helper, unbatched).T
+        labels = torch.concat((labels, torch.zeros(2*(self.num_y_steps-1), unbatched.shape[0])))
+        coefs = torch.matmul(self.cubic_spline_helper, labels)
+        return torch.sum(coefs[1])
         
 # unit test
 if __name__ == '__main__':

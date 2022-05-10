@@ -257,12 +257,13 @@ class PersFormer(nn.Module):
 
         # uncertainty loss weight
         self.uncertainty_loss = nn.Parameter(torch.tensor([args._3d_vis_loss_weight,
-                                                            args._3d_prob_loss_weight,
-                                                            args._3d_reg_loss_weight,
-                                                            args._2d_vis_loss_weight,
-                                                            args._2d_prob_loss_weight,
-                                                            args._2d_reg_loss_weight,
-                                                            args._seg_loss_weight]), requires_grad=True)
+                                                           args._3d_prob_loss_weight,
+                                                           args._3d_reg_loss_weight,
+                                                           args._2d_vis_loss_weight,
+                                                           args._2d_prob_loss_weight,
+                                                           args._2d_reg_loss_weight,
+                                                           args._seg_loss_weight, 1
+                                                           ]), requires_grad=True)
 
     def forward(self, input, _M_inv = None, eval=False, use_fpn=False, use_att=True, args=None):
         out_featList = self.encoder(input)

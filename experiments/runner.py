@@ -76,8 +76,8 @@ class Runner:
                                                               self.train_dataset._x_off_std, self.train_dataset._y_off_std,
                                                               self.train_dataset._z_std, args.pred_cam, args.no_cuda)
         else:
-            self.criterion = Loss_crit.Laneline_loss_gflat_multiclass(self.train_dataset.num_types, args.num_y_steps,
-                                                                      args.pred_cam, args.num_category, args.no_3d, args.loss_dist)
+            self.criterion = Loss_crit.new_loss(self.train_dataset.num_types, args.num_y_steps,
+                                                args.pred_cam, args.num_category, args.no_3d, args.loss_dist)
         if 'openlane' in args.dataset_name:
             self.evaluator = eval_3D_lane.LaneEval(args)
         else:
@@ -682,6 +682,11 @@ class Runner:
             loss += _3d_prob_loss_factor * loss_3d_dict['prob_loss']
             _3d_reg_loss_factor = 1 / torch.exp(uncertainty_loss[2])
             loss += _3d_reg_loss_factor * loss_3d_dict['reg_loss']
+
+            if "power_loss" in loss_3d_dict:
+                _3d_power_loss_factor = 1 / torch.exp(uncertainty_loss[-1])
+                loss += _3d_power_loss_factor * loss_3d_dict['reg_loss']
+
 
             open_2d = 1.0
             _2d_vis_loss_factor = 1 / torch.exp(uncertainty_loss[3])
