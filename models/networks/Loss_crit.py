@@ -503,7 +503,7 @@ class new_loss(nn.Module):
             matrix[2*(n-1) + spline_num, 4 * spline_num:4 * spline_num + 4] = torch.tensor([3,2,1,0])
             matrix[2*(n-1) + spline_num, 4 * (spline_num + 1) + 2] = -1
             
-        for spline_num in range(series.shape[0]-2):
+        for spline_num in range(n-2):
             matrix[3*(n-1) - 1 + spline_num, 4 * spline_num:4 * spline_num + 4] = torch.tensor([6,2,0,0])
             matrix[3*(n-1) - 1 + spline_num, 4 * (spline_num + 1) + 1] = -2
             
@@ -516,6 +516,12 @@ class new_loss(nn.Module):
         self.power_helper = torch.zeros((self.num_y_steps, 4 * self.num_y_steps - 4))
         for spline_num in range(self.num_y_steps - 1):
             self.power_helper[spline_num, 4*spline_num + 1] = 1
+            
+        device = torch.device("cuda", 0)
+        self.cubic_spline_helper = self.cubic_spline_helper.to(device)
+        self.label_helper = self.label_helper.to(device)
+        self.power_helper = self.power_helper.to(device)
+        
         
     def forward(self, pred_3D_lanes, gt_3D_lanes, pred_hcam, gt_hcam, pred_pitch, gt_pitch):
         """
@@ -587,23 +593,28 @@ class new_loss(nn.Module):
 
             loss2 = (left_loss * right_loss) + right_loss + left_loss
 
-        x_energy_pred = self.get_energy(pred_anchors[:,:,:self.num_y_steps], gt_visibility)
-        z_energy_pred = self.get_energy(pred_anchors[:,:,self.num_y_steps:], gt_visibility)
-        x_energy_gt = self.get_energy(gt_anchors[:,:,:self.num_y_steps], gt_visibility)
-        z_energy_gt = self.get_energy(gt_anchors[:,:,self.num_y_steps:], gt_visibility)
+        print("Fuck me", pred_anchors.shape)
+        x_energy_pred = self.get_energy(pred_anchors[:,:,0,:self.num_y_steps], gt_visibility)
+        z_energy_pred = self.get_energy(pred_anchors[:,:,0,self.num_y_steps:], gt_visibility)
+        x_energy_gt = self.get_energy(gt_anchors[:,:,0,:self.num_y_steps], gt_visibility)
+        z_energy_gt = self.get_energy(gt_anchors[:,:,0,self.num_y_steps:], gt_visibility)
 
         loss3 = torch.sum(torch.abs(x_energy_pred - x_energy_gt)) + torch.sum(torch.abs(z_energy_pred - z_energy_gt))
 
         return self.loss_dist[0]*loss0 + self.loss_dist[1]*loss1 + self.loss_dist[2]*loss2 + loss3, {'vis_loss': loss0, 'prob_loss': loss1, 'reg_loss': loss2,  'power_loss': loss3}
 
 
-    def get_energy(self,achors, gt_visibility):
+    def get_energy(self,anchors, gt_visibility):
+        device = torch.device("cuda", 0)
         unbatched = anchors.reshape((-1, self.num_y_steps))
-        labels = torch.matmul(self.label_helper, unbatched.T).T
-        labels = torch.concat((labels, torch.zeros(2*(self.num_y_steps-1), unbatched.shape[0])))
+        labels = torch.matmul(self.label_helper, unbatched.T)
+        #print("Check", labels.shape)
+        labels = torch.cat((labels, torch.zeros(2*(self.num_y_steps-1), unbatched.shape[0]).to(device)))
         coefs = torch.matmul(self.cubic_spline_helper, labels)
         second_deriv = torch.matmul(self.power_helper, coefs).T
-        second_deriv_vis = gt_visibility * second_deriv.reshape((achors.shape[0], achors.shape[1], -1))
+        print("Check visbility", gt_visibility.shape)
+        print(second_deriv.reshape((anchors.shape[0], anchors.shape[1], -1)).shape)
+        second_deriv_vis = gt_visibility[:,:,0,:] * second_deriv.reshape((anchors.shape[0], anchors.shape[1], -1))
         second_deriv_vis = torch.pow(second_deriv_vis, 2)
         return torch.sum(second_deriv_vis, axis = 2)
         
