@@ -469,7 +469,7 @@ class Laneline_loss_gflat_3D(nn.Module):
         return loss0+loss1+loss2+loss3+loss4
 
 class new_loss(nn.Module):
-   """
+    """
     Compute the loss between predicted lanelines and ground-truth laneline in anchor representation.
     The anchor representation is in flat ground space X', Y' and real 3D Z. Visibility estimation is also included.
 
