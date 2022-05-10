@@ -513,6 +513,9 @@ class new_loss(nn.Module):
 
         self.cubic_spline_helper = torch.linalg.inv(matrix)
         self.label_helper = torch.cat(2*[torch.eye(self.num_y_steps)], axis = 1).reshape((-1,self.num_y_steps))[1:-1]
+        self.power_helper = torch.zeros((self.num_y_steps, 4 * self.num_y_steps - 4))
+        for spline_num in range(self.num_y_steps - 1):
+            self.power_helper[spline_num, 4*spline_num + 1] = 1
         
     def forward(self, pred_3D_lanes, gt_3D_lanes, pred_hcam, gt_hcam, pred_pitch, gt_pitch):
         """
@@ -584,22 +587,25 @@ class new_loss(nn.Module):
 
             loss2 = (left_loss * right_loss) + right_loss + left_loss
 
-        x_energy_pred = self.get_energy(pred_anchors[:,:,:self.num_y_steps])
-        z_energy_pred = self.get_energy(pred_anchors[:,:,self.num_y_steps:])
-        x_energy_gt = self.get_energy(gt_anchors[:,:,:self.num_y_steps])
-        z_energy_gt = self.get_energy(gt_anchors[:,:,self.num_y_steps:])
+        x_energy_pred = self.get_energy(pred_anchors[:,:,:self.num_y_steps], gt_visibility)
+        z_energy_pred = self.get_energy(pred_anchors[:,:,self.num_y_steps:], gt_visibility)
+        x_energy_gt = self.get_energy(gt_anchors[:,:,:self.num_y_steps], gt_visibility)
+        z_energy_gt = self.get_energy(gt_anchors[:,:,self.num_y_steps:], gt_visibility)
 
-        loss3 = torch.abs(x_energy_pred + z_energy_pred - x_energy_gt - z_energy_gt)
+        loss3 = torch.sum(torch.abs(x_energy_pred - x_energy_gt)) + torch.sum(torch.abs(z_energy_pred - z_energy_gt))
 
         return self.loss_dist[0]*loss0 + self.loss_dist[1]*loss1 + self.loss_dist[2]*loss2 + loss3, {'vis_loss': loss0, 'prob_loss': loss1, 'reg_loss': loss2,  'power_loss': loss3}
 
 
-    def get_energy(self,achors):
+    def get_energy(self,achors, gt_visibility):
         unbatched = anchors.reshape((-1, self.num_y_steps))
-        labels = torch.matmul(self.label_helper, unbatched).T
+        labels = torch.matmul(self.label_helper, unbatched.T).T
         labels = torch.concat((labels, torch.zeros(2*(self.num_y_steps-1), unbatched.shape[0])))
         coefs = torch.matmul(self.cubic_spline_helper, labels)
-        return torch.sum(coefs[1])
+        second_deriv = torch.matmul(self.power_helper, coefs).T
+        second_deriv_vis = gt_visibility * second_deriv.reshape((achors.shape[0], achors.shape[1], -1))
+        second_deriv_vis = torch.pow(second_deriv_vis, 2)
+        return torch.sum(second_deriv_vis, axis = 2)
         
 # unit test
 if __name__ == '__main__':
