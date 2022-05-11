@@ -523,7 +523,7 @@ class LaneDataset(Dataset):
         elif noise_typ == "s&p":
             row,col,ch = image.shape
             s_vs_p = 0.5
-            amount = 0.004
+            amount = 0.01
             out = np.copy(image)
             # Salt mode
             num_salt = np.ceil(amount * image.size * s_vs_p)
@@ -620,8 +620,10 @@ class LaneDataset(Dataset):
         # image.show()
         # image2 = copy.deepcopy(image)
         # time.sleep(5)
-        image = self.add_noise("gauss", np.asarray(image))
+        image = self.add_noise("s&p", np.asarray(image))
         image = Image.fromarray(np.uint8(image))
+        image.show()
+        a=5/0
         # # image.show()
         # # print(image)
         # # print("CHECK THE NEXT LINE")
