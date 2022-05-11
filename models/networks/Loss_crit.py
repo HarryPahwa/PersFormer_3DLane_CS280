@@ -581,7 +581,7 @@ class new_loss(nn.Module):
             loss2 = torch.sum(torch.norm(valid_category_weight*torch.cat((gt_visibility, gt_visibility), 3) *
                                      (pred_anchors-gt_anchors), p=1, dim=3))
 
-        print("Fuck me", pred_anchors.shape)
+        #print("Fuck me", pred_anchors.shape)
         x_energy_pred = self.get_energy(pred_anchors[:,:,0,:self.num_y_steps], gt_visibility)
         z_energy_pred = self.get_energy(pred_anchors[:,:,0,self.num_y_steps:], gt_visibility)
         x_energy_gt = self.get_energy(gt_anchors[:,:,0,:self.num_y_steps], gt_visibility)
@@ -600,8 +600,8 @@ class new_loss(nn.Module):
         labels = torch.cat((labels, torch.zeros(2*(self.num_y_steps-1), unbatched.shape[0]).to(device)))
         coefs = torch.matmul(self.cubic_spline_helper, labels)
         second_deriv = torch.matmul(self.power_helper, coefs).T
-        print("Check visbility", gt_visibility.shape)
-        print(second_deriv.reshape((anchors.shape[0], anchors.shape[1], -1)).shape)
+        #print("Check visbility", gt_visibility.shape)
+        #print(second_deriv.reshape((anchors.shape[0], anchors.shape[1], -1)).shape)
         second_deriv_vis = gt_visibility[:,:,0,:] * second_deriv.reshape((anchors.shape[0], anchors.shape[1], -1))
         #second_deriv_vis = torch.pow(second_deriv_vis, 2)
         return second_deriv_vis#torch.sum(second_deriv_vis, axis = 2)

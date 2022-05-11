@@ -94,7 +94,7 @@ class PersFormer(nn.Module):
                                                            args._2d_vis_loss_weight,
                                                            args._2d_prob_loss_weight,
                                                            args._2d_reg_loss_weight,
-                                                           args._seg_loss_weight, 1
+                                                           args._seg_loss_weight, 0.
                                                            ]), requires_grad=True)
 
     def forward(self, input, _M_inv = None):
