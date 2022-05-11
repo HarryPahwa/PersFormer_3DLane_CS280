@@ -145,6 +145,7 @@ class Runner:
             losses_3d_vis = AverageMeter()
             losses_3d_prob = AverageMeter()
             losses_3d_reg = AverageMeter()
+            losses_3d_power = AverageMeter()
             losses_2d_vis = AverageMeter()
             losses_2d_cls = AverageMeter()
             losses_2d_reg = AverageMeter()
@@ -207,7 +208,7 @@ class Runner:
                 optimizer.step()
 
                 # reduce loss from all gpu, then update losses
-                loss_list = [losses, losses_3d_vis, losses_3d_prob, losses_3d_reg, losses_2d_vis, losses_2d_cls, losses_2d_reg]
+                loss_list = [losses, losses_3d_vis, losses_3d_prob, losses_3d_reg, losses_2d_vis, losses_2d_cls, losses_2d_reg, losses_3d_power]
                 loss_list = self.reduce_all_loss(args, loss_list, loss, loss_3d_dict, loss_att_dict, input.size(0))
 
                 # Time trainig iteration
@@ -298,6 +299,7 @@ class Runner:
         losses_3d_vis = AverageMeter()
         losses_3d_prob = AverageMeter()
         losses_3d_reg = AverageMeter()
+        losses_3d_power = AverageMeter()
         losses_2d_vis = AverageMeter()
         losses_2d_cls = AverageMeter()
         losses_2d_reg = AverageMeter()
@@ -350,7 +352,7 @@ class Runner:
                 loss = self.compute_loss(args, epoch, loss_3d, loss_att, loss_seg, uncertainty_loss, loss_3d_dict, loss_att_dict)
 
                 # reduce loss from all gpu, then update losses
-                loss_list = [losses, losses_3d_vis, losses_3d_prob, losses_3d_reg, losses_2d_vis, losses_2d_cls, losses_2d_reg]
+                loss_list = [losses, losses_3d_vis, losses_3d_prob, losses_3d_reg, losses_2d_vis, losses_2d_cls, losses_2d_reg, losses_3d_power]
                 loss_list = self.reduce_all_loss(args, loss_list, loss, loss_3d_dict, loss_att_dict, input.size(0))
 
                 # Print info
@@ -720,6 +722,11 @@ class Runner:
         reduced_reg_loss = reduce_tensors(reduced_reg_loss, world_size=args.world_size)
         losses_3d_reg = loss_list[3]
         losses_3d_reg.update(to_python_float(reduced_reg_loss), num)
+
+        reduced_power_loss = loss_3d_dict['power_loss'].data
+        reduced_power_loss = reduce_tensors(reduced_power_loss, world_size=args.world_size)
+        losses_3d_power = loss_list[-1]
+        losses_3d_power.update(to_python_float(reduced_power_loss), num)
 
         reduce_2d_vis_loss = loss_att_dict['vis_loss'].data
         reduce_2d_vis_loss = reduce_tensors(reduce_2d_vis_loss, world_size=args.world_size)

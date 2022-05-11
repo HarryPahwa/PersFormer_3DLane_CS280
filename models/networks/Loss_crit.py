@@ -578,20 +578,8 @@ class new_loss(nn.Module):
             loss2 = torch.sum(torch.norm(valid_category_weight*gt_visibility*(pred_anchors-gt_anchors), p=1, dim=3))
         else:
             # x/z offsets
-            to_the_left = (pred_anchors <= gt_anchors).type(torch.cuda.FloatTensor)
-            to_the_right = 1 - to_the_left
-
-            left_loss = torch.sum(torch.norm(valid_category_weight *
-                                             to_the_left * 
-                                             torch.cat((gt_visibility, gt_visibility), 3) *
-                                             (pred_anchors-gt_anchors), p=1, dim=3))
-
-            right_loss = torch.sum(torch.norm(valid_category_weight *
-                                              to_the_right * 
-                                              torch.cat((gt_visibility, gt_visibility), 3) *
-                                              (pred_anchors-gt_anchors), p=1, dim=3))
-
-            loss2 = (left_loss * right_loss) + right_loss + left_loss
+            loss2 = torch.sum(torch.norm(valid_category_weight*torch.cat((gt_visibility, gt_visibility), 3) *
+                                     (pred_anchors-gt_anchors), p=1, dim=3))
 
         print("Fuck me", pred_anchors.shape)
         x_energy_pred = self.get_energy(pred_anchors[:,:,0,:self.num_y_steps], gt_visibility)
@@ -599,7 +587,7 @@ class new_loss(nn.Module):
         x_energy_gt = self.get_energy(gt_anchors[:,:,0,:self.num_y_steps], gt_visibility)
         z_energy_gt = self.get_energy(gt_anchors[:,:,0,self.num_y_steps:], gt_visibility)
 
-        loss3 = torch.sum(torch.abs(x_energy_pred - x_energy_gt)) + torch.sum(torch.abs(z_energy_pred - z_energy_gt))
+        loss3 = torch.sum(torch.pow(x_energy_pred - x_energy_gt, 2)) + torch.sum(torch.pow(z_energy_pred - z_energy_gt,2))
 
         return self.loss_dist[0]*loss0 + self.loss_dist[1]*loss1 + self.loss_dist[2]*loss2 + loss3, {'vis_loss': loss0, 'prob_loss': loss1, 'reg_loss': loss2,  'power_loss': loss3}
 
@@ -615,8 +603,8 @@ class new_loss(nn.Module):
         print("Check visbility", gt_visibility.shape)
         print(second_deriv.reshape((anchors.shape[0], anchors.shape[1], -1)).shape)
         second_deriv_vis = gt_visibility[:,:,0,:] * second_deriv.reshape((anchors.shape[0], anchors.shape[1], -1))
-        second_deriv_vis = torch.pow(second_deriv_vis, 2)
-        return torch.sum(second_deriv_vis, axis = 2)
+        #second_deriv_vis = torch.pow(second_deriv_vis, 2)
+        return second_deriv_vis#torch.sum(second_deriv_vis, axis = 2)
         
 # unit test
 if __name__ == '__main__':
